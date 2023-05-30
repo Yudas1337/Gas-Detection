@@ -1,13 +1,8 @@
 #define BLYNK_TEMPLATE_ID "TMPLr5v9dbdK"
 #define BLYNK_DEVICE_NAME "Smoke Detector"
-
-#define BLYNK_FIRMWARE_VERSION        "0.1.0"
-
+#define BLYNK_FIRMWARE_VERSION "0.1.0"
 #define BLYNK_PRINT Serial
-
 #define APP_DEBUG
-
-
 #define USE_NODE_MCU_BOARD
 
 #include "BlynkEdgent.h"
@@ -17,11 +12,8 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 
-
-
 #define SCREEN_WIDTH 128 // OLED display width, in pixels
 #define SCREEN_HEIGHT 64 // OLED display height, in pixels
-
 
 #define OLED_RESET     -1 // Reset pin # (or -1 if sharing Arduino reset pin)
 #define SCREEN_ADDRESS 0x3C 
