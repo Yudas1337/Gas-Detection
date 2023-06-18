@@ -1,140 +1,123 @@
-#define BLYNK_TEMPLATE_ID "TMPLr5v9dbdK"
-#define BLYNK_DEVICE_NAME "Smoke Detector"
-#define BLYNK_FIRMWARE_VERSION "0.1.0"
-#define BLYNK_PRINT Serial
-#define APP_DEBUG
-#define USE_NODE_MCU_BOARD
+#include <Arduino.h>
+#include <ESP8266WiFi.h>
+#include <PubSubClient.h>
 
-#include "BlynkEdgent.h"
-#include <MQ2.h>
-#include <SPI.h>
-#include <Wire.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
+// Pin untuk sensor LED
+#define LED_RED D5
 
-#define SCREEN_WIDTH 128 // OLED display width, in pixels
-#define SCREEN_HEIGHT 64 // OLED display height, in pixels
+// Pin untuk sensor MQ-2
+const int MQ2_PIN = A0;
 
-#define OLED_RESET     -1 // Reset pin # (or -1 if sharing Arduino reset pin)
-#define SCREEN_ADDRESS 0x3C 
+// Pin untuk buzzer
+ const int BUZZER_PIN = D2;
 
-Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+// Nilai ambang batas untuk mendeteksi gas atau asap rokok
+const int THRESHOLD = 550;
 
-#define BUZZ      12 //D6 
-#define LED       14 //D5
+const char* ssid = "ROG Phone 3";
+const char* password = "ROGPHONE";
 
-int pin = A0;
-float lpg, co, smoke;
-MQ2 mq2(pin);
-int button1 = 0;
-int button2 = 0;
-SimpleTimer timer;
+const char* mqtt_server = "broker.hivemq.com";
+const int mqtt_port = 1883;
 
-void setup()
-{
+const char* topic = "kelompok-3/smoke-sensor";
+
+String macAddr = "";
+
+WiFiClient espClient;
+PubSubClient client(espClient);
+
+void setup() {
   Serial.begin(115200);
-  delay(100);
+  pinMode(MQ2_PIN, INPUT);
+  pinMode(BUZZER_PIN, OUTPUT);
+  pinMode(LED_RED, OUTPUT);
 
-  BlynkEdgent.begin();
-
-  pinMode(BUZZ, OUTPUT);
-  pinMode(LED, OUTPUT);
-
-  digitalWrite(BUZZ, LOW);
-  digitalWrite(LED, LOW);
-
-  mq2.begin();
-
-  if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
-    Serial.println(F("SSD1306 allocation failed"));
-   // for (;;);
-  }
-  delay(2000);
-  display.clearDisplay();
-  display.setTextSize(2);
-  display.setTextColor(SSD1306_WHITE);
-  display.setCursor(0, 0);
-  display.println(" IoT Smoke ");
-  display.setCursor(0, 20);
-  display.println("  Detector  ");
-  display.display();
-  delay(1000);
-  timer.setInterval(1000L, sendSensorData);
-
+  connectWifi();
+  client.setServer(mqtt_server, mqtt_port);
 }
 
 void loop() {
-  timer.run();
-  BlynkEdgent.run();
-}
-void sendSensorData()
-{
-  float* values = mq2.read(true);
-  co = mq2.readCO();
-  smoke = mq2.readSmoke();
-  lpg = mq2.readLPG();
+  if (!client.connected()){
+    reconnect();
+  }
+  if (!client.loop()){
+    client.connect(macAddr.c_str());
+  }
 
-  if (button1 == 1)
+  int sensorValue = analogRead(MQ2_PIN);
+
+  if (sensorValue > THRESHOLD) {
+    Serial.println("Detected smoke or gas!");
+
+    digitalWrite(LED_RED, HIGH);
+    playSiren();
+    digitalWrite(LED_RED, LOW);
+   
+  }
+
+   // Mengirimkan nilai sensor melalui Serial Monitor
+  Serial.print("Sensor Value: ");
+  Serial.println(sensorValue);
+
+  char payload[10];
+  sprintf(payload, "%d", sensorValue);
+
+  client.publish(topic, payload);
+
+  delay(1000);
+
+}
+
+void connectWifi(){
+    delay(10);
+    Serial.println();
+    Serial.print("Connecting to ");
+    Serial.println(ssid);
+    WiFi.begin(ssid, password);
+    while (WiFi.status() != WL_CONNECTED)
+    {
+      delay(500);
+      Serial.print(".");
+    }
+    Serial.println("");
+    Serial.print("WiFi connected - ESP IP address: ");
+    Serial.println(WiFi.localIP());
+    macAddr = WiFi.macAddress();
+    Serial.println(macAddr);
+}
+
+void reconnect()
+{
+  while (!client.connected())
   {
-    display.clearDisplay();
-    display.setTextSize(2);
-    display.setCursor(0, 0);
-    display.print("    LPG   ");
-    display.setCursor(10, 30);
-    display.print(lpg);
-    display.setTextSize(1);
-    display.print(" PPM");
-    delay(5000);
-    display.display();
+    Serial.print("Attempting MQTT connection...");
+    if (client.connect(macAddr.c_str()))
+    {
+      Serial.println("connected");
+    }
+    else
+    {
+      Serial.print("failed, rc=");
+      Serial.print(client.state());
+      Serial.println(" try again in 5 seconds");
+      delay(5000);
+    }
   }
-  else if (button2 == 1)
-  {
-    display.clearDisplay();
-    display.setTextSize(2);
-    display.setCursor(0, 0);
-    display.print("    CO    ");
-    display.setCursor(10, 30);
-    display.print(co);
-    display.setTextSize(1);
-    display.print(" PPM");
-    delay(5000);
-    display.display();
-  }
-  else {
-
-    display.clearDisplay();
-    display.setTextSize(2);
-    display.setCursor(0, 0);
-    display.print("   SMOKE   ");
-    display.setCursor(10, 30);
-    display.print(smoke);
-    display.setTextSize(1);
-    display.print(" PPM");
-    delay(5000);
-    display.display();
-  }
-
-  Blynk.virtualWrite(V1, smoke);
-  Blynk.virtualWrite(V2, lpg);
-  Blynk.virtualWrite(V3, co);
-  if (smoke > 50 ) {
-    Blynk.logEvent("smoke", "Smoke Detected!");
-    digitalWrite(BUZZ, HIGH);
-    digitalWrite(LED, HIGH);
-  }
-  else {
-    digitalWrite(BUZZ, LOW);
-    digitalWrite(LED, LOW);
-  }
-
 }
 
-BLYNK_WRITE(V4)
-{
-  button1 = param.asInt();
-}
+void playSiren() {
+  int noteDuration = 200;
 
-BLYNK_WRITE(V5)
-{
-  button2 = param.asInt();
+  // Pola nada bunyi alarm kebakaran
+  int fireAlarmPattern[] = {
+    880, 0, 880, 0, 880, 0, 880, 0, 880, 0, 880, 0,
+  };
+
+  // Memainkan pola nada
+  for (int i = 0; i < sizeof(fireAlarmPattern) / sizeof(int); i++) {
+    tone(BUZZER_PIN, fireAlarmPattern[i], noteDuration);
+    delay(noteDuration * 1.3);
+    noTone(BUZZER_PIN);
+  }
 }
