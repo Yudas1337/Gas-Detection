@@ -14,10 +14,12 @@ const int MQ2_PIN = A0;
 // Nilai ambang batas untuk mendeteksi gas atau asap rokok
 const int THRESHOLD = 550;
 
-const char* ssid = "ROG Phone 3";
-const char* password = "ROGPHONE";
+const char* ssid = "ARIDA_RUKITA_KOST";
+const char* password = "bestforever";
 
-const char* mqtt_server = "broker.hivemq.com";
+const char* mqtt_server = "192.168.0.206"; // wifi ip
+const char* mqtt_username = "jti";
+const char* mqtt_password = "yudas";
 const int mqtt_port = 1883;
 
 const char* topic = "kelompok-3/smoke-sensor";
@@ -42,7 +44,7 @@ void loop() {
     reconnect();
   }
   if (!client.loop()){
-    client.connect(macAddr.c_str());
+    client.connect(macAddr.c_str(), mqtt_username, mqtt_password);
   }
 
   int sensorValue = analogRead(MQ2_PIN);
@@ -64,7 +66,7 @@ void loop() {
   sprintf(payload, "%d", sensorValue);
 
   client.publish(topic, payload);
-
+  client.subscribe(topic);
   delay(1000);
 
 }
@@ -92,7 +94,7 @@ void reconnect()
   while (!client.connected())
   {
     Serial.print("Attempting MQTT connection...");
-    if (client.connect(macAddr.c_str()))
+    if (client.connect(macAddr.c_str(), mqtt_username, mqtt_password))
     {
       Serial.println("connected");
     }
